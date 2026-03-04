@@ -105,6 +105,20 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             'alpha': slice(5, 6),
         }
         self._device = 'cpu'
+        
+    def switch_samplers(self, sampler_type: str = "euler"):
+        """Dynamically switches the sampler instances based on user selection."""
+        self._sampler_prefix = "Euler"
+        if sampler_type == "rk4":
+            self._sampler_prefix = "RK4"
+        elif sampler_type == "rk5":
+            self._sampler_prefix = "RK5"
+            
+        args = self._pretrained_args
+        self.sparse_structure_sampler = getattr(samplers, f"Flow{self._sampler_prefix}GuidanceIntervalSampler")(**args['sparse_structure_sampler']['args'])
+        # Re-instantiate the samplers using the new prefix but keeping original args
+        self.shape_slat_sampler = getattr(samplers, f"Flow{self._sampler_prefix}GuidanceIntervalSampler")(**args['shape_slat_sampler']['args'])
+        self.tex_slat_sampler = getattr(samplers, f"Flow{self._sampler_prefix}GuidanceIntervalSampler")(**args['tex_slat_sampler']['args'])        
 
     @property
     def low_vram(self) -> bool:
@@ -886,7 +900,8 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         max_views: int = 4,
         generate_texture_slat = True,
         use_tiled: bool = True,
-        pbar = None
+        pbar = None,
+        sampler: str = "euler"
     ) -> List[MeshWithVoxel]:
         """
         Run the pipeline.
@@ -903,6 +918,8 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             pipeline_type (str): The type of the pipeline. Options: '512', '1024', '1024_cascade', '1536_cascade'.
             max_num_tokens (int): The maximum number of tokens to use.
         """
+        self.switch_samplers(sampler)
+        
         # Check pipeline type
         pipeline_type = pipeline_type or self.default_pipeline_type
         # if pipeline_type == '512':
@@ -1183,10 +1200,13 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         pbar: ProgressBar = None,
         front_axis: str = 'z',
         blend_temperature: float = 2.0,
+        sampler: str = "euler",
     ) -> List[MeshWithVoxel]:
         """
         Run the pipeline with named multi-view images and spatial blending.
         """
+        self.switch_samplers(sampler)
+        
         if pipeline_type is None:
             pipeline_type = self.default_pipeline_type
         
@@ -1397,10 +1417,15 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         in_channels = flow_model.in_channels
         noise = torch.randn(num_samples, in_channels, reso, reso, reso).to(self.device)
         
-        sampler = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+        # sampler = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+            # sigma_min=1e-5,
+            # resolution=flow_model.resolution
+        # )
+        sampler_class = getattr(samplers, f"Flow{self._sampler_prefix}MultiViewGuidanceIntervalSampler", samplers.FlowEulerMultiViewGuidanceIntervalSampler)
+        sampler = sampler_class(
             sigma_min=1e-5,
-            resolution=flow_model.resolution
-        )
+            resolution=flow_model.resolution if hasattr(flow_model, 'resolution') else flow_model[0].resolution
+        )        
         
         sampler_params = {**self.sparse_structure_sampler_params, **sampler_params}
         
@@ -1479,10 +1504,15 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             coords=coords_dev,
         )
         
-        sampler = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+        # sampler = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+            # sigma_min=1e-5,
+            # resolution=flow_model.resolution,
+        # )
+        sampler_class = getattr(samplers, f"Flow{self._sampler_prefix}MultiViewGuidanceIntervalSampler", samplers.FlowEulerMultiViewGuidanceIntervalSampler)
+        sampler = sampler_class(
             sigma_min=1e-5,
-            resolution=flow_model.resolution,
-        )
+            resolution=flow_model.resolution if hasattr(flow_model, 'resolution') else flow_model[0].resolution
+        )        
         
         sampler_params = {**self.shape_slat_sampler_params, **sampler_params}
         
@@ -1546,10 +1576,15 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             coords=coords_dev,
         )
         
-        sampler_lr = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+        # sampler_lr = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+            # sigma_min=1e-5,
+            # resolution=flow_model_lr.resolution,
+        # )
+        sampler_class = getattr(samplers, f"Flow{self._sampler_prefix}MultiViewGuidanceIntervalSampler", samplers.FlowEulerMultiViewGuidanceIntervalSampler)
+        sampler_lr = sampler_class(
             sigma_min=1e-5,
-            resolution=flow_model_lr.resolution,
-        )
+            resolution=flow_model.resolution if hasattr(flow_model, 'resolution') else flow_model[0].resolution
+        )        
         
         sampler_params_combined = {**self.shape_slat_sampler_params, **sampler_params}
         
@@ -1610,10 +1645,15 @@ class Trellis2ImageTo3DPipeline(Pipeline):
                 break
 
         # HR
-        sampler_hr = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+        # sampler_hr = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+            # sigma_min=1e-5,
+            # resolution=flow_model.resolution,
+        # )
+        sampler_class = getattr(samplers, f"Flow{self._sampler_prefix}MultiViewGuidanceIntervalSampler", samplers.FlowEulerMultiViewGuidanceIntervalSampler)
+        sampler_hr = sampler_class(
             sigma_min=1e-5,
-            resolution=flow_model.resolution,
-        )
+            resolution=flow_model.resolution if hasattr(flow_model, 'resolution') else flow_model[0].resolution
+        )        
         
         coords_dev = coords.to(self.device).contiguous()
         noise = SparseTensor(
@@ -1689,10 +1729,15 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         
         sampler_params = {**self.tex_slat_sampler_params, **sampler_params}
         
-        sampler = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+        # sampler = samplers.FlowEulerMultiViewGuidanceIntervalSampler(
+            # sigma_min=1e-5,
+            # resolution=flow_model.resolution,
+        # )
+        sampler_class = getattr(samplers, f"Flow{self._sampler_prefix}MultiViewGuidanceIntervalSampler", samplers.FlowEulerMultiViewGuidanceIntervalSampler)
+        sampler = sampler_class(
             sigma_min=1e-5,
-            resolution=flow_model.resolution,
-        )
+            resolution=flow_model.resolution if hasattr(flow_model, 'resolution') else flow_model[0].resolution
+        )          
         
         if self.low_vram:
             flow_model.to(self.device)
@@ -2034,8 +2079,11 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         max_views = 4,
         bake_on_vertices = False,
         use_custom_normals = False,
-        mesh_cluster_threshold_cone_half_angle_rad=60.0
+        mesh_cluster_threshold_cone_half_angle_rad=60.0,
+        sampler: str = 'euler'
     ):
+        self.switch_samplers(sampler)
+        
         mesh = self.preprocess_mesh(mesh)
         seed_all(seed)
         
@@ -2108,7 +2156,10 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         mesh_cluster_threshold_cone_half_angle_rad=60.0,
         front_axis: str = 'z',
         blend_temperature: float = 2.0,
+        sampler: str = 'euler'
     ):
+        self.switch_samplers(sampler)
+        
         mesh = self.preprocess_mesh(mesh)
         seed_all(seed)
         
@@ -2309,7 +2360,10 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         downsampling = 16,
         use_tiled: bool = True,
         max_views: int = 4,
+        sampler: str = 'euler'
     ):
+        self.switch_samplers(sampler)
+        
         mesh = self.preprocess_mesh(mesh)
         seed_all(seed)
         

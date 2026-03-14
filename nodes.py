@@ -3852,7 +3852,8 @@ class Trellis2MultiViewTexturing:
                 "blend_exponent": ("FLOAT", {"default": 2.0, "min": 0.5, "max": 8.0, "step": 0.5}),
                 "ortho_scale": ("FLOAT", {"default": 1.0, "min": 0.05, "max": 10.0, "step": 0.01}),
                 "norm_size": ("FLOAT",{"default":1.15, "min":0.0, "max":9.99, "step":0.01}),
-                "fill_holes": ("BOOLEAN",{"default":False}),
+                "fill_holes": ("BOOLEAN",{"default":True}),
+                "max_hole_size": ("INT",{"default":10,"min":0,"max":99999,"step":1}),
             },
             "optional": {
                 # Standard views
@@ -3885,6 +3886,7 @@ class Trellis2MultiViewTexturing:
         ortho_scale,
         norm_size,
         fill_holes,
+        max_hole_size,
         baseColorTexture = None,
         front_image=None,
         back_image=None,
@@ -3964,7 +3966,8 @@ class Trellis2MultiViewTexturing:
             ortho_scale=ortho_scale,
             blend_texture=blend_texture,
             fill_holes=fill_holes,
-            norm_size=norm_size
+            norm_size=norm_size,
+            max_hole_size=max_hole_size
         )
         
         return (trimesh_obj, pil2tensor(base_color), pil2tensor(mr))

@@ -790,54 +790,6 @@
       ]
     },
     {
-      "id": 250,
-      "type": "Hy3DDiffusersSchedulerConfig",
-      "pos": [
-        -314.72770034835025,
-        2141.9033917044144
-      ],
-      "size": [
-        390.5999755859375,
-        82
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "pipeline",
-          "type": "HY3DDIFFUSERSPIPE",
-          "link": 450
-        }
-      ],
-      "outputs": [
-        {
-          "name": "diffusers_scheduler",
-          "type": "NOISESCHEDULER",
-          "slot_index": 0,
-          "links": [
-            455
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "visualbruno/ComfyUI-Hunyuan3DWrapper",
-        "ver": "6090a9051f109d2774d309cf6a8a22d4a11a1b15",
-        "Node name for S&R": "Hy3DDiffusersSchedulerConfig",
-        "widget_ue_connectable": {
-          "scheduler": true,
-          "sigmas": true
-        },
-        "cnr_id": "comfyui-hunyan3dwrapper"
-      },
-      "widgets_values": [
-        "Euler",
-        "default"
-      ]
-    },
-    {
       "id": 248,
       "type": "Hy3DRenderMultiView",
       "pos": [
@@ -1857,8 +1809,8 @@
         "cnr_id": "comfy-core",
         "ver": "0.16.4",
         "Node name for S&R": "Preview3D",
-        "Last Time Model File": "C:/Git/ComfyUI/output/3D/Pistol_MV/Pistol_MV_Textured_MV_00001_.glb",
-        "Resource Folder": "Git/ComfyUI/output/3D/Pistol_MV",
+        "Last Time Model File": "C:/Git/ComfyUI/output/3D/AnimeGirl/AnimeGirl_Textured_MV_00002_.glb",
+        "Resource Folder": "Git/ComfyUI/output/3D/AnimeGirl",
         "Scene Config": {
           "showGrid": true,
           "backgroundColor": "#282828",
@@ -1870,13 +1822,13 @@
           "fov": 35,
           "state": {
             "position": {
-              "x": -9.285925508472754,
-              "y": 6.135860681339741,
-              "z": -3.084115266640774
+              "x": -2.7373252313099936,
+              "y": 5.5744471940243105,
+              "z": 7.192391392495912
             },
             "target": {
               "x": 0,
-              "y": 2.3565700410649804,
+              "y": 2.5,
               "z": 0
             },
             "zoom": 1,
@@ -1888,8 +1840,219 @@
         }
       },
       "widgets_values": [
-        "C:/Git/ComfyUI/output/3D/Pistol_MV/Pistol_MV_Textured_MV_00001_.glb",
+        "C:/Git/ComfyUI/output/3D/AnimeGirl/AnimeGirl_Textured_MV_00002_.glb",
         ""
+      ]
+    },
+    {
+      "id": 209,
+      "type": "PrimitiveInt",
+      "pos": [
+        -1941.870656950478,
+        277.2558588777398
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            400
+          ]
+        }
+      ],
+      "title": "Target Face Number",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.16.4",
+        "Node name for S&R": "PrimitiveInt"
+      },
+      "widgets_values": [
+        500000,
+        "fixed"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "Trellis2LoadImageWithTransparency",
+      "pos": [
+        -1948.5694294982507,
+        430.5866991705322
+      ],
+      "size": [
+        631.9393495485403,
+        765.9737728955563
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "image_with_alpha",
+          "type": "IMAGE",
+          "links": [
+            344
+          ]
+        }
+      ],
+      "title": "Normal Image",
+      "properties": {
+        "aux_id": "visualbruno/ComfyUI-Trellis2",
+        "ver": "e7f9b30df7a09bcedf1c955e176754c73f983254",
+        "Node name for S&R": "Trellis2LoadImageWithTransparency",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "AnimeGirl_1024_00001_.png",
+        "image"
+      ]
+    },
+    {
+      "id": 239,
+      "type": "Trellis2LoadImageWithTransparency",
+      "pos": [
+        -1939.1565291278416,
+        1247.0590522961702
+      ],
+      "size": [
+        627.638044195148,
+        672.4931923313359
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            483
+          ]
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "image_with_alpha",
+          "type": "IMAGE",
+          "links": [
+            440
+          ]
+        }
+      ],
+      "title": "Color Image",
+      "properties": {
+        "aux_id": "visualbruno/ComfyUI-Trellis2",
+        "ver": "e8098f5641702e74133c2dea0b45a13a3ab19985",
+        "Node name for S&R": "Trellis2LoadImageWithTransparency"
+      },
+      "widgets_values": [
+        "AnimeGirl_808_00001_.png",
+        "image"
+      ]
+    },
+    {
+      "id": 219,
+      "type": "PrimitiveString",
+      "pos": [
+        -1941.3621908316666,
+        157.6667334107927
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            464,
+            465
+          ]
+        }
+      ],
+      "title": "Name -> output in 3D folder",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.16.4",
+        "Node name for S&R": "PrimitiveString"
+      },
+      "widgets_values": [
+        "AnimeGirl"
+      ]
+    },
+    {
+      "id": 250,
+      "type": "Hy3DDiffusersSchedulerConfig",
+      "pos": [
+        -308.8898175615872,
+        2137.2330213377168
+      ],
+      "size": [
+        390.5999755859375,
+        82
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pipeline",
+          "type": "HY3DDIFFUSERSPIPE",
+          "link": 450
+        }
+      ],
+      "outputs": [
+        {
+          "name": "diffusers_scheduler",
+          "type": "NOISESCHEDULER",
+          "slot_index": 0,
+          "links": [
+            455
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "visualbruno/ComfyUI-Hunyuan3DWrapper",
+        "ver": "6090a9051f109d2774d309cf6a8a22d4a11a1b15",
+        "Node name for S&R": "Hy3DDiffusersSchedulerConfig",
+        "widget_ue_connectable": {
+          "scheduler": true,
+          "sigmas": true
+        },
+        "cnr_id": "comfyui-hunyan3dwrapper"
+      },
+      "widgets_values": [
+        "Euler",
+        "default"
       ]
     },
     {
@@ -1901,7 +2064,7 @@
       ],
       "size": [
         363.3228515625,
-        386
+        410
       ],
       "flags": {},
       "order": 38,
@@ -1991,172 +2154,10 @@
         2,
         1.1,
         1.15,
-        "",
+        true,
+        10,
         "",
         ""
-      ]
-    },
-    {
-      "id": 209,
-      "type": "PrimitiveInt",
-      "pos": [
-        -1941.870656950478,
-        277.2558588777398
-      ],
-      "size": [
-        270,
-        82
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "INT",
-          "type": "INT",
-          "links": [
-            400
-          ]
-        }
-      ],
-      "title": "Target Face Number",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.16.4",
-        "Node name for S&R": "PrimitiveInt"
-      },
-      "widgets_values": [
-        500000,
-        "fixed"
-      ]
-    },
-    {
-      "id": 6,
-      "type": "Trellis2LoadImageWithTransparency",
-      "pos": [
-        -1948.5694294982507,
-        430.5866991705322
-      ],
-      "size": [
-        631.9393495485403,
-        765.9737728955563
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "links": null
-        },
-        {
-          "name": "mask",
-          "type": "MASK",
-          "links": null
-        },
-        {
-          "name": "image_with_alpha",
-          "type": "IMAGE",
-          "links": [
-            344
-          ]
-        }
-      ],
-      "title": "Normal Image",
-      "properties": {
-        "aux_id": "visualbruno/ComfyUI-Trellis2",
-        "ver": "e7f9b30df7a09bcedf1c955e176754c73f983254",
-        "Node name for S&R": "Trellis2LoadImageWithTransparency",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        "Image_1024_00081_.png",
-        "image"
-      ]
-    },
-    {
-      "id": 239,
-      "type": "Trellis2LoadImageWithTransparency",
-      "pos": [
-        -1939.1565291278416,
-        1247.0590522961702
-      ],
-      "size": [
-        627.638044195148,
-        672.4931923313359
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "links": [
-            483
-          ]
-        },
-        {
-          "name": "mask",
-          "type": "MASK",
-          "links": null
-        },
-        {
-          "name": "image_with_alpha",
-          "type": "IMAGE",
-          "links": [
-            440
-          ]
-        }
-      ],
-      "title": "Color Image",
-      "properties": {
-        "aux_id": "visualbruno/ComfyUI-Trellis2",
-        "ver": "e8098f5641702e74133c2dea0b45a13a3ab19985",
-        "Node name for S&R": "Trellis2LoadImageWithTransparency"
-      },
-      "widgets_values": [
-        "Image_1024_00065_.png",
-        "image"
-      ]
-    },
-    {
-      "id": 219,
-      "type": "PrimitiveString",
-      "pos": [
-        -1941.3621908316666,
-        157.6667334107927
-      ],
-      "size": [
-        270,
-        58
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": [
-            464,
-            465
-          ]
-        }
-      ],
-      "title": "Name -> output in 3D folder",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.16.4",
-        "Node name for S&R": "PrimitiveString"
-      },
-      "widgets_values": [
-        "Pistol_MV"
       ]
     }
   ],
@@ -2722,10 +2723,10 @@
     "workflowRendererVersion": "LG",
     "ue_links": [],
     "ds": {
-      "scale": 0.3899868676879694,
+      "scale": 0.835971485622887,
       "offset": [
-        2537.916276869781,
-        -243.0909834796268
+        1391.1352648291552,
+        -2311.024721130755
       ]
     },
     "links_added_by_ue": [],

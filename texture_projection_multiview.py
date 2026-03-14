@@ -53,6 +53,7 @@ import math
 
 import cumesh as CuMesh
 
+from tqdm import tqdm
 
 # ---------------------------------------------------------------------------
 # Camera helpers
@@ -138,6 +139,7 @@ def texture_mesh_with_multiview(
     norm_size: float = 1.15,
     fill_holes: bool = False,
     blend_texture: bool = True,
+    max_hole_size: int = 10,
 ):
     if not (len(images) == len(azimuths) == len(elevations)):
         raise ValueError("images, azimuths, and elevations must have the same length")
@@ -339,36 +341,96 @@ def texture_mesh_with_multiview(
         n_projected = int(composite_mask.sum().item())
         print(f"  Projected texels: {n_projected} / {texture_size*texture_size}"
               f"  ({100.0*n_projected/(texture_size*texture_size):.1f}%)")
-              
-        if fill_holes:
-            print('Filling holes ...')
-            
-            hole_mask = (~valid_mask.cpu().numpy()).astype(np.uint8)
-            n_holes   = int(hole_mask.sum())
-            print(f"  Inpainting {n_holes} hole texels ({100.0*n_holes/hole_mask.size:.1f}%)...")
 
-            if n_holes > 0:
-                for c in range(3):
-                    color_np[..., c] = cv2.inpaint(color_np[..., c], hole_mask, 3, cv2.INPAINT_NS)
-                alpha_np = cv2.inpaint(alpha_np, hole_mask, 3, cv2.INPAINT_NS)                 
     else:
         # No existing texture found – fall back to projection-only output
         print("  WARNING: No existing PBR baseColorTexture found on mesh, "
               "outputting projection-only texture (holes will be transparent).")
         color_np = (projected_color.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
         alpha_np = composite_mask.cpu().numpy().astype(np.uint8) * 255
-        
-        if fill_holes:
-            print('Filling holes ...')
-            
-            hole_mask = (~valid_mask.cpu().numpy()).astype(np.uint8)
-            n_holes   = int(hole_mask.sum())
-            print(f"  Inpainting {n_holes} hole texels ({100.0*n_holes/hole_mask.size:.1f}%)...")
 
-            if n_holes > 0:
-                for c in range(3):
-                    color_np[..., c] = cv2.inpaint(color_np[..., c], hole_mask, 3, cv2.INPAINT_NS)
-                alpha_np = cv2.inpaint(alpha_np, hole_mask, 3, cv2.INPAINT_NS)            
+    if fill_holes:
+        print('Filling holes and padding UV seams ...')
+        
+        # Get numpy arrays
+        uv_mask_np = uv_hit_mask.cpu().numpy().astype(np.uint8)
+        valid_mask_np = valid_mask.cpu().numpy().astype(np.uint8)
+        
+        # 1. INTERNAL HOLES: Pixels inside the UV map that didn't get colored
+        internal_hole_mask = cv2.bitwise_and(cv2.bitwise_not(valid_mask_np), uv_mask_np)
+        
+        if max_hole_size > 0:
+            # Filter internal holes by size to avoid filling massive intentional gaps
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(internal_hole_mask, connectivity=8)
+            areas = stats[:, cv2.CC_STAT_AREA]
+            valid_labels_mask = (areas <= max_hole_size)
+            valid_labels_mask[0] = False  # Ignore background
+            filtered_internal_holes = valid_labels_mask[labels].astype(np.uint8)
+        else:
+            filtered_internal_holes = internal_hole_mask
+
+        # 2. UV SEAM PADDING: A small band of pixels just outside the UV islands
+        # We dilate the UV mask by a few pixels to create a "bleed" area
+        pad_radius = 5  # You can increase this if the black lines persist at long distances
+        kernel = np.ones((3, 3), np.uint8)
+        dilated_uv = cv2.dilate(uv_mask_np, kernel, iterations=pad_radius)
+        
+        # The padding mask is the dilated area MINUS the original UV area
+        seam_padding_mask = cv2.bitwise_and(dilated_uv, cv2.bitwise_not(uv_mask_np))
+
+        # 3. COMBINE AND INPAINT
+        # We want to inpaint both the internal dots and the external seams simultaneously
+        final_inpaint_mask = cv2.bitwise_or(filtered_internal_holes, seam_padding_mask)
+
+        n_holes = int(filtered_internal_holes.sum())
+        n_pad   = int(seam_padding_mask.sum())
+        print(f"  Inpainting {n_holes} internal texels and {n_pad} seam padding texels...")
+
+        if (n_holes + n_pad) > 0:
+            for c in range(3):
+                color_np[..., c] = cv2.inpaint(color_np[..., c], final_inpaint_mask, 3, cv2.INPAINT_NS)
+            alpha_np = cv2.inpaint(alpha_np, final_inpaint_mask, 3, cv2.INPAINT_NS)
+            
+    # if fill_holes:
+        # print('Filling holes ...')
+        
+        # # 1. Get the raw mask of all holes (1 for hole, 0 for valid)
+        # raw_hole_mask = (~valid_mask.cpu().numpy()).astype(np.uint8)
+        
+        # # 2. Filter by size if a limit is set
+        # if max_hole_size > 0:
+            # filtered_hole_mask = np.zeros_like(raw_hole_mask)
+            # # Find connected components (connectivity=8 handles diagonals)
+            # num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(raw_hole_mask, connectivity=8)
+            
+            # print(f"Num Labels: {num_labels}")
+            # # Label 0 is the background (non-holes), so we start checking from Label 1
+            
+            # if num_labels>0:
+                # progress_bar = tqdm(total=num_labels, desc="Filling holes")
+                
+                # for label_id in range(1, num_labels):
+                    # area = stats[label_id, cv2.CC_STAT_AREA]
+                    # if area <= max_hole_size:
+                        # # If the hole is small enough, add it to our filtered mask
+                        # filtered_hole_mask[labels == label_id] = 1
+                    # progress_bar.update(1)
+                
+                # progress_bar.close()
+                
+                # print(f"Number of filtered holes: {len(filtered_hole_mask)}")
+                
+            # hole_mask = filtered_hole_mask
+        # else:
+            # hole_mask = raw_hole_mask
+
+        # n_holes = int(hole_mask.sum())
+        # print(f"  Inpainting {n_holes} hole texels ({100.0*n_holes/hole_mask.size:.1f}%)...")
+
+        # if n_holes > 0:
+            # for c in range(3):
+                # color_np[..., c] = cv2.inpaint(color_np[..., c], hole_mask, 3, cv2.INPAINT_NS)
+            # alpha_np = cv2.inpaint(alpha_np, hole_mask, 3, cv2.INPAINT_NS)          
         
 
     # =========================================================================

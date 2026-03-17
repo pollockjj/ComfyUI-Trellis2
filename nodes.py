@@ -942,7 +942,8 @@ class Trellis2UnWrapAndRasterizer:
                 "double_side_material": ("BOOLEAN",{"default":False}),
                 "bake_on_vertices": ("BOOLEAN",{"default":False}),
                 "use_custom_normals": ("BOOLEAN",{"default":False}),
-                "bvh": ("BVH",),                
+                "bvh": ("BVH",),
+                "inpainting": (["telea","ns"],{"default":"telea"}),
             }
         }
 
@@ -952,7 +953,7 @@ class Trellis2UnWrapAndRasterizer:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, texture_alpha_mode, double_side_material, bake_on_vertices,use_custom_normals,bvh):
+    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, texture_alpha_mode, double_side_material, bake_on_vertices,use_custom_normals,bvh,inpainting):
         mesh_copy = copy.deepcopy(mesh)
         
         aabb = [[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]]
@@ -1157,12 +1158,17 @@ class Trellis2UnWrapAndRasterizer:
         alpha = np.clip(attrs[..., attr_layout['alpha']].cpu().numpy() * 255, 0, 255).astype(np.uint8)
         alpha_mode = texture_alpha_mode
         
+        if inpainting == 'telea':
+            inpainting = cv2.INPAINT_TELEA
+        else:
+            inpainting = cv2.INPAINT_NS
+        
         # Inpainting: fill gaps (dilation) to prevent black seams at UV boundaries
         mask_inv = (~mask).astype(np.uint8)
-        base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_NS)
-        metallic = cv2.inpaint(metallic, mask_inv, 1, cv2.INPAINT_NS)[..., None]
-        roughness = cv2.inpaint(roughness, mask_inv, 1, cv2.INPAINT_NS)[..., None]
-        alpha = cv2.inpaint(alpha, mask_inv, 1, cv2.INPAINT_NS)[..., None]
+        base_color = cv2.inpaint(base_color, mask_inv, 3, inpainting)
+        metallic = cv2.inpaint(metallic, mask_inv, 1, inpainting)[..., None]
+        roughness = cv2.inpaint(roughness, mask_inv, 1, inpainting)[..., None]
+        alpha = cv2.inpaint(alpha, mask_inv, 1, inpainting)[..., None]
         
         # Create PBR material
         # Standard PBR packs Metallic and Roughness into Blue and Green channels
@@ -1479,6 +1485,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
                 "use_custom_normals":("BOOLEAN",{"default":False}),
                 "bvh": ("BVH",),
                 "remove_inner_faces": ("BOOLEAN",{"default":True}),
+                "inpainting": (["telea","ns"],{"default":"telea"}),
             }
         }
 
@@ -1488,7 +1495,7 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num, simplify_method, fill_holes, texture_alpha_mode, dual_contouring_resolution, double_side_material, remove_floaters, bake_on_vertices,use_custom_normals,bvh,remove_inner_faces):
+    def process(self, mesh, mesh_cluster_threshold_cone_half_angle_rad, mesh_cluster_refine_iterations, mesh_cluster_global_iterations, mesh_cluster_smooth_strength, texture_size, remesh, remesh_band, remesh_project, target_face_num, simplify_method, fill_holes, texture_alpha_mode, dual_contouring_resolution, double_side_material, remove_floaters, bake_on_vertices,use_custom_normals,bvh,remove_inner_faces,inpainting):
         pbar = ProgressBar(5 if not bake_on_vertices else 4)
         mesh_copy = copy.deepcopy(mesh)
         
@@ -1830,11 +1837,16 @@ class Trellis2PostProcessAndUnWrapAndRasterizer:
         alpha_mode = texture_alpha_mode
         
         # Inpainting: fill gaps (dilation) to prevent black seams at UV boundaries
+        if inpainting == 'telea':
+            inpainting = cv2.INPAINT_TELEA
+        else:
+            inpainting = cv2.INPAINT_NS
+        
         mask_inv = (~mask).astype(np.uint8)
-        base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_NS)
-        metallic = cv2.inpaint(metallic, mask_inv, 1, cv2.INPAINT_NS)[..., None]
-        roughness = cv2.inpaint(roughness, mask_inv, 1, cv2.INPAINT_NS)[..., None]
-        alpha = cv2.inpaint(alpha, mask_inv, 1, cv2.INPAINT_NS)[..., None]
+        base_color = cv2.inpaint(base_color, mask_inv, 3, inpainting)
+        metallic = cv2.inpaint(metallic, mask_inv, 1, inpainting)[..., None]
+        roughness = cv2.inpaint(roughness, mask_inv, 1, inpainting)[..., None]
+        alpha = cv2.inpaint(alpha, mask_inv, 1, inpainting)[..., None]
         
         # Create PBR material
         # Standard PBR packs Metallic and Roughness into Blue and Green channels
@@ -2104,6 +2116,7 @@ class Trellis2MeshTexturing:
                 "use_custom_normals": ("BOOLEAN",{"default":False}),
                 "mesh_cluster_threshold_cone_half_angle_rad": ("FLOAT",{"default":60.0,"min":0.0,"max":359.9}),
                 "sampler": (["euler", "heun", "rk4", "rk5"], {"default": "euler"}),
+                "inpainting": (["telea","ns"],{"default":"telea"}),
             },
         }
 
@@ -2113,7 +2126,7 @@ class Trellis2MeshTexturing:
     CATEGORY = "Trellis2Wrapper"
     OUTPUT_NODE = True
 
-    def process(self, pipeline, image, trimesh, seed, texture_steps, texture_guidance_strength, texture_guidance_rescale, texture_rescale_t, resolution, texture_size, texture_alpha_mode, double_side_material, texture_guidance_interval_start, texture_guidance_interval_end, max_views,bake_on_vertices,use_custom_normals,mesh_cluster_threshold_cone_half_angle_rad, sampler):
+    def process(self, pipeline, image, trimesh, seed, texture_steps, texture_guidance_strength, texture_guidance_rescale, texture_rescale_t, resolution, texture_size, texture_alpha_mode, double_side_material, texture_guidance_interval_start, texture_guidance_interval_end, max_views,bake_on_vertices,use_custom_normals,mesh_cluster_threshold_cone_half_angle_rad, sampler, inpainting):
         images = tensor_batch_to_pil_list(image, max_views=max_views)
         image_in = images[0] if len(images) == 1 else images
 
@@ -2135,7 +2148,8 @@ class Trellis2MeshTexturing:
             bake_on_vertices = bake_on_vertices,
             use_custom_normals = use_custom_normals,
             mesh_cluster_threshold_cone_half_angle_rad = mesh_cluster_threshold_cone_half_angle_rad,
-            sampler = sampler
+            sampler = sampler,
+            inpainting = inpainting
         )            
 
         baseColorTexture = pil2tensor(baseColorTexture_np)
@@ -2168,6 +2182,7 @@ class Trellis2MeshTexturingMultiView:
                 "front_axis": (["z", "x"], {"default": "z"}),
                 "blend_temperature": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 10.0, "step": 0.1}),
                 "sampler": (["euler", "heun", "rk4", "rk5"], {"default": "euler"}),
+                "inpainting": (["telea","ns"],{"default":"telea"}),
             },
             "optional": {
                 "back_image": ("IMAGE",),
@@ -2203,6 +2218,7 @@ class Trellis2MeshTexturingMultiView:
         front_axis,
         blend_temperature,
         sampler,
+        inpainting,
         back_image = None,
         left_image = None,
         right_image = None):
@@ -2237,7 +2253,8 @@ class Trellis2MeshTexturingMultiView:
             mesh_cluster_threshold_cone_half_angle_rad = mesh_cluster_threshold_cone_half_angle_rad,
             front_axis = front_axis,
             blend_temperature = blend_temperature,
-            sampler = sampler
+            sampler = sampler,
+            inpainting = inpainting
         )            
 
         baseColorTexture = pil2tensor(baseColorTexture_np)

@@ -3913,7 +3913,7 @@ class Trellis2MultiViewTexturing:
                 "fill_holes": ("BOOLEAN",{"default":True}),
                 "max_hole_size": ("INT",{"default":10,"min":0,"max":99999,"step":1}),
                 "use_metallic": ("BOOLEAN",{"default":True}),
-                "depth_eps": ("FLOAT",{"default":0.002,"min":0.001,"max":1.000,"step":0.001}),
+                "depth_eps": ("FLOAT",{"default":0.0002,"min":0.0001,"max":1.0000,"step":0.0001}),
             },
             "optional": {
                 # Standard views

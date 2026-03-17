@@ -283,13 +283,15 @@ def texture_mesh_with_multiview(
 
         look, right, up = get_camera_vectors(az, el, device='cuda')
 
-        # Create occlusion map at a fixed moderate resolution to avoid
-        # sub-pixel face_id aliasing at triangle edges (the root cause of
-        # white wireframe lines at high input resolutions like 4096).
-        occ_res = min(1024, img_h, img_w)
+        # Create a moderately high-resolution occlusion map.
+        # Side views are especially sensitive to self-occlusion leaks where
+        # background/body texels can slip through around limbs.
+        occ_res = min(2048, img_h, img_w)
         cam_clip = build_ortho_clip_verts(out_verts, right, up, look, ortho_scale)
         
         cam_rast, _ = dr.rasterize(ctx, cam_clip, out_faces.int(), resolution=[occ_res, occ_res])
+        cam_hit = cam_rast[0, :, :, 3] > 0
+        cam_hit_img = cam_hit.float().unsqueeze(0).unsqueeze(0)
 
         # depth buffer
         cam_depth = dr.interpolate(
@@ -299,8 +301,9 @@ def texture_mesh_with_multiview(
         )[0][0]
 
         cam_depth = cam_depth.permute(2,0,1).unsqueeze(0)  # for grid_sample
-        
-        #cam_faceid_img = (cam_rast[0, :, :, 3].long() - 1).float().unsqueeze(0).unsqueeze(0)
+        inf_depth = torch.full_like(cam_depth, torch.finfo(cam_depth.dtype).max)
+        cam_depth_occ = torch.where(cam_hit.unsqueeze(0).unsqueeze(0), cam_depth, inf_depth)
+        cam_depth_occ = -F.max_pool2d(-cam_depth_occ, kernel_size=3, stride=1, padding=1)
 
         # Map texels to camera clip space
         _, _, u_clip, v_clip = project_texels_to_image(tex_pos, right, up, ortho_scale)
@@ -339,9 +342,16 @@ def texture_mesh_with_multiview(
 
         # Occlusion check
         grid_occ = torch.stack([u_clip, v_clip], dim=-1).unsqueeze(0)
+        sampled_hit = F.grid_sample(
+            cam_hit_img,
+            grid_occ,
+            mode='bilinear',
+            padding_mode='zeros',
+            align_corners=False
+        )[0, 0] > 0.25
         
         sampled_depth = F.grid_sample(
-            cam_depth,
+            cam_depth_occ,
             grid_occ,
             mode='bilinear',
             padding_mode='border',
@@ -350,12 +360,11 @@ def texture_mesh_with_multiview(
 
         tex_depth = -(tex_pos * look).sum(-1)
 
-        face_match = tex_depth <= sampled_depth + depth_eps        
+        depth_match = tex_depth >= sampled_depth - depth_eps
         
         # Visibility Mask
         in_bounds = (u_samp.abs() <= 1.0) & (v_samp.abs() <= 1.0)
-        #face_match = (sampled_faceid.long() == tex_face_id)
-        visible = uv_hit_mask & in_bounds & face_match
+        visible = uv_hit_mask & in_bounds & sampled_hit & depth_match
 
         # Weighting and Accumulation
         grid_col = torch.stack([u_samp, v_samp], dim=-1).unsqueeze(0)

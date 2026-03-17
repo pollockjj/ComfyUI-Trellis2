@@ -249,30 +249,94 @@ def texture_mesh_with_multiview(
     for img, az, el in zip(images, azimuths, elevations):
         img_np = np.array(img.convert('RGB')).astype(np.float32) / 255.0
         img_h, img_w = img_np.shape[:2]
+
+        # --- Dilate foreground colors into background to prevent bilinear bleed ---
+        img_rgba = img.convert('RGBA')
+        img_np_rgba = np.array(img_rgba)
+
+        # Build foreground mask
+        if img.mode != 'RGBA' or img_np_rgba[:, :, 3].min() == 255:
+            bg_color = img_np_rgba[0, 0, :3]
+            color_diff = np.abs(img_np_rgba[:, :, :3].astype(int) - bg_color.astype(int)).sum(axis=-1)
+            fg_mask = (color_diff > 10).astype(np.uint8)
+        else:
+            fg_mask = (img_np_rgba[:, :, 3] > 127).astype(np.uint8)
+
+        # Dilate the foreground mask and inpaint the background band
+        # Scale dilation with image resolution to prevent bilinear bleed
+        base_res = 1024
+        scale = max(img_h, img_w) / base_res
+        dilate_px = int(max(5, 5 * scale))
+        kernel = np.ones((3, 3), np.uint8)
+        dilated_fg = cv2.dilate(fg_mask, kernel, iterations=dilate_px)
+        band_to_fill = cv2.bitwise_and(dilated_fg, cv2.bitwise_not(fg_mask))
+
+        # Inpaint the color channels into the dilated band
+        img_rgb_u8 = (img_np * 255).clip(0, 255).astype(np.uint8)
+        if int(band_to_fill.sum()) > 0:
+            for c in range(3):
+                img_rgb_u8[..., c] = cv2.inpaint(img_rgb_u8[..., c], band_to_fill, 3, cv2.INPAINT_NS)
+        img_np = img_rgb_u8.astype(np.float32) / 255.0
+
         img_t = torch.from_numpy(img_np).cuda().permute(2, 0, 1).unsqueeze(0).contiguous()
 
         look, right, up = get_camera_vectors(az, el, device='cuda')
 
-        # Create occlusion map
+        # Create occlusion map at a fixed moderate resolution to avoid
+        # sub-pixel face_id aliasing at triangle edges (the root cause of
+        # white wireframe lines at high input resolutions like 4096).
+        occ_res = min(1024, img_h, img_w)
         cam_clip = build_ortho_clip_verts(out_verts, right, up, look, ortho_scale)
-        cam_rast, _ = dr.rasterize(ctx, cam_clip, out_faces.int(), resolution=[img_h, img_w])
+        cam_rast, _ = dr.rasterize(ctx, cam_clip, out_faces.int(), resolution=[occ_res, occ_res])
         cam_faceid_img = (cam_rast[0, :, :, 3].long() - 1).float().unsqueeze(0).unsqueeze(0)
 
-        # Map texels to camera
-        u_samp, v_samp, u_clip, v_clip = project_texels_to_image(tex_pos, right, up, ortho_scale)
+        # Map texels to camera clip space
+        _, _, u_clip, v_clip = project_texels_to_image(tex_pos, right, up, ortho_scale)
+
+        # Map mesh world-space bounds -> image pixel bounds
+        cam_clip_verts = cam_clip[0]
+        mesh_u_min = cam_clip_verts[:, 0].min()
+        mesh_u_max = cam_clip_verts[:, 0].max()
+        mesh_v_min = cam_clip_verts[:, 1].min()
+        mesh_v_max = cam_clip_verts[:, 1].max()
+
+        mesh_u_span = (mesh_u_max - mesh_u_min).clamp(min=1e-6)
+        mesh_v_span = (mesh_v_max - mesh_v_min).clamp(min=1e-6)
+
+        # Find character bounds in image using the foreground mask
+        coords = np.argwhere(fg_mask)
+        if len(coords) > 0:
+            y_min, x_min = coords.min(axis=0)
+            y_max, x_max = coords.max(axis=0)
+        else:
+            y_min, x_min = 0, 0
+            y_max, x_max = img_h - 1, img_w - 1
+
+        u_norm = (u_clip - mesh_u_min) / mesh_u_span
+        x_pixel = u_norm * float(x_max - x_min + 1) + float(x_min) - 0.5
+        u_samp = ((x_pixel + 0.5) / float(img_w)) * 2.0 - 1.0
+
+        v_norm = (v_clip - mesh_v_min) / mesh_v_span
+        y_pixel = (1.0 - v_norm) * float(y_max - y_min + 1) + float(y_min) - 0.5
+        v_samp = ((y_pixel + 0.5) / float(img_h)) * 2.0 - 1.0
+
+        # Prevent grid_sample from touching the border texel
+        eps = 1e-4
+        u_samp = u_samp.clamp(-1 + eps, 1 - eps)
+        v_samp = v_samp.clamp(-1 + eps, 1 - eps)
 
         # Occlusion check
         grid_occ = torch.stack([u_clip, v_clip], dim=-1).unsqueeze(0)
-        sampled_faceid = F.grid_sample(cam_faceid_img, grid_occ, mode='nearest', padding_mode='border', align_corners=True)[0, 0]
+        sampled_faceid = F.grid_sample(cam_faceid_img, grid_occ, mode='nearest', padding_mode='border', align_corners=False)[0, 0]
         
         # Visibility Mask
-        in_bounds = (u_clip.abs() <= 1.0) & (v_clip.abs() <= 1.0)
+        in_bounds = (u_samp.abs() <= 1.0) & (v_samp.abs() <= 1.0)
         face_match = (sampled_faceid.long() == tex_face_id)
         visible = uv_hit_mask & in_bounds & face_match
 
         # Weighting and Accumulation
         grid_col = torch.stack([u_samp, v_samp], dim=-1).unsqueeze(0)
-        sampled_colors = F.grid_sample(img_t, grid_col, mode='bilinear', padding_mode='border', align_corners=True)[0].permute(1, 2, 0)
+        sampled_colors = F.grid_sample(img_t, grid_col, mode='bilinear', padding_mode='border', align_corners=False)[0].permute(1, 2, 0)
         
         dot = (tex_normals * (-look)).sum(-1).clamp(min=0.0)
         weights = (dot ** blend_exponent) * visible.float()

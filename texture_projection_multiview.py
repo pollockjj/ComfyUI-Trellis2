@@ -471,10 +471,22 @@ def texture_mesh_with_multiview(
 
     else:
         # No existing texture found – fall back to projection-only output
-        print("  WARNING: No existing PBR baseColorTexture found on mesh, "
-              "outputting projection-only texture (holes will be transparent).")
+        print(
+            "  WARNING: No existing PBR baseColorTexture found on mesh, "
+            "outputting projection-only texture (holes will be transparent)."
+        )
+
+        # RGB from projection
         color_np = (projected_color.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
-        alpha_np = composite_mask.cpu().numpy().astype(np.uint8) * 255
+
+        # Alpha from projection confidence
+        conf_np = confidence.cpu().numpy()
+
+        # Slight threshold to remove noise
+        alpha_mask = conf_np > 0.01
+
+        alpha_np = (conf_np * 255).clip(0, 255).astype(np.uint8)
+        alpha_np[~alpha_mask] = 0
 
     if fill_holes:
         print('Filling holes and padding UV seams ...')

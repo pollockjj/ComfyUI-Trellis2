@@ -141,6 +141,7 @@ def texture_mesh_with_multiview(
     blend_texture: bool = True,
     max_hole_size: int = 10,
     use_metallic: bool = True,
+    depth_eps: float = 0.002,
 ):
     if not (len(images) == len(azimuths) == len(elevations)):
         raise ValueError("images, azimuths, and elevations must have the same length")
@@ -287,8 +288,19 @@ def texture_mesh_with_multiview(
         # white wireframe lines at high input resolutions like 4096).
         occ_res = min(1024, img_h, img_w)
         cam_clip = build_ortho_clip_verts(out_verts, right, up, look, ortho_scale)
+        
         cam_rast, _ = dr.rasterize(ctx, cam_clip, out_faces.int(), resolution=[occ_res, occ_res])
-        cam_faceid_img = (cam_rast[0, :, :, 3].long() - 1).float().unsqueeze(0).unsqueeze(0)
+
+        # depth buffer
+        cam_depth = dr.interpolate(
+            (-(out_verts * look).sum(-1)).unsqueeze(0).unsqueeze(-1),
+            cam_rast,
+            out_faces.int()
+        )[0][0]
+
+        cam_depth = cam_depth.permute(2,0,1).unsqueeze(0)  # for grid_sample
+        
+        #cam_faceid_img = (cam_rast[0, :, :, 3].long() - 1).float().unsqueeze(0).unsqueeze(0)
 
         # Map texels to camera clip space
         _, _, u_clip, v_clip = project_texels_to_image(tex_pos, right, up, ortho_scale)
@@ -327,11 +339,22 @@ def texture_mesh_with_multiview(
 
         # Occlusion check
         grid_occ = torch.stack([u_clip, v_clip], dim=-1).unsqueeze(0)
-        sampled_faceid = F.grid_sample(cam_faceid_img, grid_occ, mode='nearest', padding_mode='border', align_corners=False)[0, 0]
+        
+        sampled_depth = F.grid_sample(
+            cam_depth,
+            grid_occ,
+            mode='bilinear',
+            padding_mode='border',
+            align_corners=False
+        )[0,0]
+
+        tex_depth = -(tex_pos * look).sum(-1)
+
+        face_match = tex_depth <= sampled_depth + depth_eps        
         
         # Visibility Mask
         in_bounds = (u_samp.abs() <= 1.0) & (v_samp.abs() <= 1.0)
-        face_match = (sampled_faceid.long() == tex_face_id)
+        #face_match = (sampled_faceid.long() == tex_face_id)
         visible = uv_hit_mask & in_bounds & face_match
 
         # Weighting and Accumulation

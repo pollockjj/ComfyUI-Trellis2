@@ -3913,6 +3913,7 @@ class Trellis2MultiViewTexturing:
                 "fill_holes": ("BOOLEAN",{"default":True}),
                 "max_hole_size": ("INT",{"default":10,"min":0,"max":99999,"step":1}),
                 "use_metallic": ("BOOLEAN",{"default":True}),
+                "depth_eps": ("FLOAT",{"default":0.002,"min":0.001,"max":1.000,"step":0.001}),
             },
             "optional": {
                 # Standard views
@@ -3947,6 +3948,7 @@ class Trellis2MultiViewTexturing:
         fill_holes,
         max_hole_size,
         use_metallic,
+        depth_eps,
         baseColorTexture = None,
         front_image=None,
         back_image=None,
@@ -4028,7 +4030,8 @@ class Trellis2MultiViewTexturing:
             fill_holes=fill_holes,
             norm_size=norm_size,
             max_hole_size=max_hole_size,
-            use_metallic=use_metallic
+            use_metallic=use_metallic,
+            depth_eps=depth_eps
         )
         
         return (trimesh_obj, pil2tensor(base_color), pil2tensor(mr))

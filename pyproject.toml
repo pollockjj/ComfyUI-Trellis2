@@ -11,7 +11,7 @@ dependencies = [
     "pymeshlab",
     "opencv-python",
     "scipy",
-    "open3d",
+    "open3d>=0.19.0",
     "plotly",
     "trimesh",
     "rembg",
@@ -26,14 +26,11 @@ dependencies = [
     "plyfile",
     "e3nn",
     "tqdm",
-    "utils3d",
     "numpy",
-    "./wheels/Linux/Torch291/cumesh-1.0-cp312-cp312-linux_x86_64.whl",
-    "./wheels/Linux/Torch291/custom_rasterizer-0.1-cp312-cp312-linux_x86_64.whl",
-    "./wheels/Linux/Torch291/flex_gemm-0.0.1-cp312-cp312-linux_x86_64.whl",
-    "./wheels/Linux/Torch291/nvdiffrast-0.4.0-cp312-cp312-linux_x86_64.whl",
-    "./wheels/Linux/Torch291/nvdiffrec_render-0.0.0-cp312-cp312-linux_x86_64.whl",
-    "./wheels/Linux/Torch291/o_voxel-0.0.1-cp312-cp312-linux_x86_64.whl",
+    "torch>=2.9.0,<2.10.0",
+    "torchvision",
+    "zstandard",
+    "easydict",
 ]
 
 [project.urls]
@@ -52,4 +49,5 @@ conda_channels = ["conda-forge"]
 conda_dependencies = []
 conda_python = "3.12.*"
 sandbox_mode = "disabled"
+find_links = ["wheels/Linux/Torch291"]
 
